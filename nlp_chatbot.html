@@ -89,11 +89,33 @@
     box-shadow: 0 0 0 0 rgba(36,214,166,0.6);
     animation: pulse 2s infinite;
   }
+  .status .dot.offline{
+    background: var(--amber);
+    animation: none;
+  }
   @keyframes pulse{
     0%{box-shadow:0 0 0 0 rgba(36,214,166,0.5);}
     70%{box-shadow:0 0 0 6px rgba(36,214,166,0);}
     100%{box-shadow:0 0 0 0 rgba(36,214,166,0);}
   }
+  .engine-tag{
+    display:inline-block;
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-top: 8px;
+    font-family:'JetBrains Mono', monospace;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .engine-tag.live{ color: var(--bot-2); border-color: rgba(36,214,166,0.4); }
+  .pos-badge{
+    display:inline-flex; flex-direction:column; align-items:center;
+    background:#151A24; border:1px solid var(--border); border-radius:8px;
+    padding:5px 9px; margin:3px 4px 3px 0; font-family:'JetBrains Mono',monospace;
+  }
+  .pos-badge .w{ font-size:12.5px; color:var(--text); }
+  .pos-badge .t{ font-size:9.5px; color:var(--bot-2); margin-top:2px; }
 
   .messages{
     flex:1;
@@ -294,7 +316,7 @@
       <div class="title">Lexicon</div>
       <div class="subtitle">NLP · NLTK · Embeddings · Sentiment</div>
     </div>
-    <div class="status"><span class="dot"></span>online</div>
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">checking backend…</span></div>
   </div>
 
   <div class="messages" id="messages"></div>
@@ -324,9 +346,52 @@ const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('userInput');
 
 let lastTopic = null; // tracks context for "Show Example Code" / "Explain with Diagram"
-let awaitingSentimentInput = false;
+let awaitingMode = null; // 'sentiment' | 'pos' | 'tokenize' | null
 
 const OUT_OF_SCOPE = "I specialize in NLP, NLTK, Sentiment Analysis, and Word Embeddings. Could you ask me something related to these areas?";
+
+// ---------- Backend connectivity (NLTK / VADER server) ----------
+const BACKEND_URL = 'http://127.0.0.1:5000';
+let backendOnline = false;
+
+async function callBackend(endpoint, payload, timeoutMs = 1800){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try{
+    const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e){
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+async function checkBackend(){
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  try{
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${BACKEND_URL}/api/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok){
+      backendOnline = true;
+      dot.classList.remove('offline');
+      label.textContent = 'NLTK backend connected';
+      return;
+    }
+  } catch(e){ /* fall through to offline */ }
+  backendOnline = false;
+  dot.classList.add('offline');
+  label.textContent = 'offline lexicon mode';
+}
 
 // ---------- Knowledge base ----------
 const TOPICS = {
@@ -484,9 +549,12 @@ function sendMessage(){
   addUserMessage(text);
   inputEl.value = '';
 
-  if (awaitingSentimentInput){
-    awaitingSentimentInput = false;
-    showTyping(() => runSentimentDemo(text));
+  if (awaitingMode){
+    const mode = awaitingMode;
+    awaitingMode = null;
+    if (mode === 'sentiment') showTyping(() => runSentimentDemo(text));
+    else if (mode === 'pos') showTyping(() => runPosDemo(text));
+    else if (mode === 'tokenize') showTyping(() => runTokenizeDemo(text));
     return;
   }
 
@@ -497,7 +565,18 @@ function respondTo(text){
   const topicKey = findTopic(text);
   if (topicKey){
     lastTopic = topicKey;
-    addBotMessage(TOPICS[topicKey].answer);
+    let answer = TOPICS[topicKey].answer;
+    if (topicKey === 'pos'){
+      answer += ' Want to see it tag a real sentence? Type one and I\'ll run it through NLTK.';
+      awaitingMode = 'pos';
+    } else if (topicKey === 'tokenization'){
+      answer += ' Type a sentence and I\'ll tokenize it live.';
+      awaitingMode = 'tokenize';
+    } else if (topicKey === 'sentiment'){
+      answer += ' Type a sentence and I\'ll score it live.';
+      awaitingMode = 'sentiment';
+    }
+    addBotMessage(answer);
   } else {
     addBotMessage(OUT_OF_SCOPE);
   }
@@ -518,7 +597,7 @@ function handleQuickAction(kind){
     });
   } else if (kind === 'sentiment'){
     showTyping(() => {
-      awaitingSentimentInput = true;
+      awaitingMode = 'sentiment';
       addBotMessage("Sure — type a sentence in the box below and I'll analyze its sentiment polarity and intensity for you.");
     });
   }
@@ -642,34 +721,106 @@ function analyzeSentiment(text){
   return { raw: score, normalized, matched };
 }
 
-function runSentimentDemo(text){
-  const result = analyzeSentiment(text);
-  const pct = Math.round(((result.normalized + 1) / 2) * 100); // 0..100 scale, 50 = neutral
-  let label, color;
-  if (result.normalized > 0.25){ label = 'Positive'; color = '#24D6A6'; }
-  else if (result.normalized < -0.25){ label = 'Negative'; color = '#E5556B'; }
-  else { label = 'Neutral'; color = '#F0A63C'; }
+async function runSentimentDemo(text){
+  let label, color, normalized, engineTag, detail;
 
-  const intensity = Math.min(1, Math.abs(result.normalized)) ;
-  const intensityLabel = intensity > 0.66 ? 'High' : intensity > 0.3 ? 'Moderate' : 'Low';
+  const live = backendOnline ? await callBackend('/api/sentiment', { text }) : null;
+
+  if (live && !live.error){
+    normalized = live.compound;
+    label = live.label;
+    color = label === 'Positive' ? '#24D6A6' : label === 'Negative' ? '#E5556B' : '#F0A63C';
+    engineTag = `<span class="engine-tag live">⚡ ${live.engine} · live</span>`;
+    detail = `compound: ${live.compound.toFixed(3)} · pos: ${live.pos.toFixed(2)} · neu: ${live.neu.toFixed(2)} · neg: ${live.neg.toFixed(2)}`;
+  } else {
+    const result = analyzeSentiment(text);
+    normalized = result.normalized;
+    if (normalized > 0.25){ label = 'Positive'; color = '#24D6A6'; }
+    else if (normalized < -0.25){ label = 'Negative'; color = '#E5556B'; }
+    else { label = 'Neutral'; color = '#F0A63C'; }
+    engineTag = `<span class="engine-tag">offline lexicon estimate</span>`;
+    detail = `polarity score: ${normalized.toFixed(2)} (range -1 to 1) · signal words matched: ${result.matched}`;
+  }
+
+  const pct = Math.round(((normalized + 1) / 2) * 100);
+  const intensity = Math.min(1, Math.abs(normalized));
+  const intensityLabel = intensity > 0.6 ? 'High' : intensity > 0.25 ? 'Moderate' : 'Low';
 
   const html = `
     Sentiment: <strong style="color:${color}">${label}</strong> · Intensity: <strong>${intensityLabel}</strong>
     <div class="sentiment-bar-track">
       <div class="sentiment-bar-fill" style="width:${pct}%; background:${color};"></div>
     </div>
-    <div style="font-size:11.5px; color:#8B93A7; margin-top:6px;">
-      polarity score: ${result.normalized.toFixed(2)} (range -1 to 1) · signal words matched: ${result.matched}
-    </div>
+    <div style="font-size:11.5px; color:#8B93A7; margin-top:6px;">${detail}</div>
+    ${engineTag}
   `;
   addBotMessage(html);
+}
+
+// ---------- Live POS tagging (backend-first, offline fallback) ----------
+function fallbackPosTag(text){
+  const DET = new Set(['the','a','an','this','that','these','those']);
+  const PRON = new Set(['i','you','he','she','it','we','they','me','him','her','us','them']);
+  const words = text.split(/\s+/).filter(Boolean);
+  return words.map(raw => {
+    const w = raw.replace(/[^a-zA-Z']/g,'');
+    const lw = w.toLowerCase();
+    let tag = 'NN';
+    if (DET.has(lw)) tag = 'DT';
+    else if (PRON.has(lw)) tag = 'PRP';
+    else if (/ly$/.test(lw)) tag = 'RB';
+    else if (/(ing)$/.test(lw)) tag = 'VBG';
+    else if (/(ed)$/.test(lw)) tag = 'VBD';
+    else if (/^(is|are|was|were|am|be|been)$/.test(lw)) tag = 'VB';
+    else if (/[.,!?]/.test(raw)) tag = '.';
+    else if (/^[A-Z]/.test(w) && w.length>1) tag = 'NNP';
+    return { word: raw, tag };
+  });
+}
+
+async function runPosDemo(text){
+  const live = backendOnline ? await callBackend('/api/pos', { text }) : null;
+  let tokens, engineTag;
+  if (live && !live.error){
+    tokens = live.tokens;
+    engineTag = `<span class="engine-tag live">⚡ ${live.engine} · live</span>`;
+  } else {
+    tokens = fallbackPosTag(text);
+    engineTag = `<span class="engine-tag">offline heuristic tagger</span>`;
+  }
+  const badges = tokens.map(t => `<span class="pos-badge"><span class="w">${escapeHTML(t.word)}</span><span class="t">${t.tag}</span></span>`).join('');
+  addBotMessage(`Here's the tagged sentence:<div style="margin-top:8px;">${badges}</div>${engineTag}`);
+}
+
+// ---------- Live tokenization (backend-first, offline fallback) ----------
+function fallbackTokenize(text){
+  const wordTokens = text.match(/[A-Za-z0-9']+|[.,!?;]/g) || [];
+  const sentTokens = text.match(/[^.!?]+[.!?]*/g)?.map(s => s.trim()).filter(Boolean) || [text];
+  return { wordTokens, sentTokens };
+}
+
+async function runTokenizeDemo(text){
+  const live = backendOnline ? await callBackend('/api/tokenize', { text }) : null;
+  let wordTokens, sentTokens, engineTag;
+  if (live && !live.error){
+    wordTokens = live.word_tokens;
+    sentTokens = live.sentence_tokens;
+    engineTag = `<span class="engine-tag live">⚡ ${live.engine} · live</span>`;
+  } else {
+    const fb = fallbackTokenize(text);
+    wordTokens = fb.wordTokens;
+    sentTokens = fb.sentTokens;
+    engineTag = `<span class="engine-tag">offline heuristic tokenizer</span>`;
+  }
+  const wordList = wordTokens.map(w => `<span class="pos-badge"><span class="w">${escapeHTML(w)}</span></span>`).join('');
+  addBotMessage(`Word tokens:<div style="margin-top:6px;">${wordList}</div><div style="font-size:11.5px; color:#8B93A7; margin-top:8px;">${sentTokens.length} sentence(s) detected</div>${engineTag}`);
 }
 
 // ---------- Clear chat ----------
 function clearChat(){
   messagesEl.innerHTML = '';
   lastTopic = null;
-  awaitingSentimentInput = false;
+  awaitingMode = null;
   seedWelcome();
 }
 
@@ -678,6 +829,9 @@ function seedWelcome(){
 }
 
 seedWelcome();
+checkBackend();
+// Re-check periodically in case the backend starts after the page loads
+setInterval(checkBackend, 15000);
 </script>
 
 </body>
