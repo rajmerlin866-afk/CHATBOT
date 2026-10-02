@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lexicon — NLP Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0E1116;
+    --panel: #161A22;
+    --panel-2: #1D222C;
+    --border: #2A3040;
+    --text: #E7E9EE;
+    --text-dim: #8B93A7;
+    --user: #6C63FF;
+    --user-2: #8B7CFF;
+    --bot: #1FB88E;
+    --bot-2: #24D6A6;
+    --amber: #F0A63C;
+    --danger: #E5556B;
+    --radius: 16px;
+    font-size: 16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: radial-gradient(circle at 20% 0%, #171C27 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding: 24px;
+  }
+  .app{
+    width:100%;
+    max-width: 760px;
+    height: min(88vh, 880px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+    resize: both;
+    min-width: 340px;
+    min-height: 420px;
+  }
+  .header{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    flex-shrink:0;
+  }
+  .header .mark{
+    width:38px;height:38px;border-radius:11px;
+    background: linear-gradient(135deg, var(--user), var(--bot));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; color:#0E1116; font-size:16px;
+  }
+  .header .title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size: 17px;
+    letter-spacing: 0.2px;
+  }
+  .header .subtitle{
+    font-size:12px;
+    color: var(--text-dim);
+    margin-top:1px;
+  }
+  .header .status{
+    margin-left:auto;
+    display:flex;align-items:center;gap:6px;
+    font-size:12px;
+    color: var(--bot-2);
+  }
+  .status .dot{
+    width:7px;height:7px;border-radius:50%;
+    background: var(--bot-2);
+    box-shadow: 0 0 0 0 rgba(36,214,166,0.6);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(36,214,166,0.5);}
+    70%{box-shadow:0 0 0 6px rgba(36,214,166,0);}
+    100%{box-shadow:0 0 0 0 rgba(36,214,166,0);}
+  }
+
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding: 20px;
+    display:flex;
+    flex-direction:column;
+    gap: 4px;
+  }
+  .messages::-webkit-scrollbar{width:8px;}
+  .messages::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
+
+  .row{
+    display:flex;
+    margin: 6px 0;
+    animation: rise 0.28s ease;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(8px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .row.user{ justify-content:flex-end; }
+  .row.bot{ justify-content:flex-start; align-items:flex-end; gap:10px;}
+
+  .avatar{
+    width:30px;height:30px;border-radius:9px;flex-shrink:0;
+    background: linear-gradient(135deg, var(--bot), #0E9C77);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;
+  }
+
+  .bubble-wrap{ max-width: 78%; display:flex; flex-direction:column; }
+  .row.user .bubble-wrap{ align-items:flex-end; }
+
+  .bubble{
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .row.user .bubble{
+    background: linear-gradient(135deg, var(--user), var(--user-2));
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .row.bot .bubble{
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble code{
+    background: rgba(0,0,0,0.35);
+    padding: 1px 5px;
+    border-radius:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .bubble pre{
+    background: #0B0D12;
+    border:1px solid var(--border);
+    padding: 12px 14px;
+    border-radius: 10px;
+    overflow-x:auto;
+    margin: 8px 0 2px;
+  }
+  .bubble pre code{
+    background:none;
+    padding:0;
+    color: #B7F5DC;
+    font-size: 12.8px;
+    line-height:1.6;
+  }
+  .timestamp{
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    padding: 0 4px;
+  }
+
+  .typing{
+    display:flex; gap:4px; align-items:center; padding: 4px 2px;
+  }
+  .typing span{
+    width:6px;height:6px;border-radius:50%;
+    background: var(--text-dim);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(2){ animation-delay:0.15s; }
+  .typing span:nth-child(3){ animation-delay:0.3s; }
+  @keyframes bounce{
+    0%,60%,100%{ transform: translateY(0); opacity:0.5; }
+    30%{ transform: translateY(-4px); opacity:1; }
+  }
+
+  .sentiment-bar-track{
+    width:100%; height:8px; border-radius:5px;
+    background: #0B0D12; border:1px solid var(--border);
+    overflow:hidden; margin-top:8px;
+  }
+  .sentiment-bar-fill{
+    height:100%; border-radius:5px;
+    transition: width 0.6s ease;
+  }
+  .diagram-box{
+    background:#0B0D12; border:1px solid var(--border); border-radius:10px;
+    padding:10px; margin-top:8px;
+  }
+
+  .quick-actions{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    flex-shrink:0;
+  }
+  .qa-btn{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding: 12px 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+    font-size: 12px;
+    font-weight:500;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .qa-btn:hover{
+    transform: translateY(-2px);
+    border-color: var(--bot-2);
+    background: #1A2A26;
+  }
+  .qa-btn .qa-icon{ font-size:18px; }
+
+  .input-bar{
+    display:flex;
+    gap:10px;
+    padding: 14px 20px 18px;
+    border-top: 1px solid var(--border);
+    flex-shrink:0;
+  }
+  .input-bar input{
+    flex:1;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family:'Inter',sans-serif;
+    outline:none;
+    transition: border-color 0.15s ease;
+  }
+  .input-bar input:focus{ border-color: var(--user-2); }
+  .input-bar input::placeholder{ color: var(--text-dim); }
+
+  .btn{
+    border:none; border-radius:12px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:13.5px;
+    padding: 0 20px;
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+  .btn:active{ transform: scale(0.96); }
+  .btn-send{
+    background: linear-gradient(135deg, var(--bot), var(--bot-2));
+    color: #06120E;
+  }
+  .btn-send:hover{ filter: brightness(1.1); }
+  .btn-clear{
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    margin: 0 20px 14px;
+    align-self:flex-start;
+    padding: 8px 16px;
+  }
+  .btn-clear:hover{ color: var(--danger); border-color: var(--danger); }
+
+  @media (max-width: 480px){
+    .quick-actions{ grid-template-columns: repeat(3,1fr); gap:6px; padding:10px; }
+    .qa-btn{ font-size:10.5px; padding:8px 4px; }
+    .app{ height: 94vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="header">
+    <div class="mark">λ</div>
+    <div>
+      <div class="title">Lexicon</div>
+      <div class="subtitle">NLP · NLTK · Embeddings · Sentiment</div>
+    </div>
+    <div class="status"><span class="dot"></span>online</div>
+  </div>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="quick-actions">
+    <button class="qa-btn" onclick="handleQuickAction('code')">
+      <span class="qa-icon">💻</span> Show Example Code
+    </button>
+    <button class="qa-btn" onclick="handleQuickAction('diagram')">
+      <span class="qa-icon">🧩</span> Explain with Diagram
+    </button>
+    <button class="qa-btn" onclick="handleQuickAction('sentiment')">
+      <span class="qa-icon">❤️</span> Sentiment Demo
+    </button>
+  </div>
+
+  <button class="btn btn-clear" onclick="clearChat()">Clear Chat</button>
+
+  <div class="input-bar">
+    <input type="text" id="userInput" placeholder="Type your message here..." onkeydown="if(event.key==='Enter') sendMessage();">
+    <button class="btn btn-send" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+
+let lastTopic = null; // tracks context for "Show Example Code" / "Explain with Diagram"
+let awaitingSentimentInput = false;
+
+const OUT_OF_SCOPE = "I specialize in NLP, NLTK, Sentiment Analysis, and Word Embeddings. Could you ask me something related to these areas?";
+
+// ---------- Knowledge base ----------
+const TOPICS = {
+  word2vec: {
+    keys: ['word2vec', 'word embedding', 'embeddings', 'cbow', 'skip-gram', 'skip gram'],
+    answer: "Word2Vec is a neural network model that learns dense word embeddings using either the CBOW (predict a word from context) or Skip-gram (predict context from a word) method. Similar words end up close together in the vector space.",
+    code: `from gensim.models import Word2Vec
+
+sentences = [["nlp", "is", "fun"], ["word2vec", "learns", "embeddings"]]
+model = Word2Vec(sentences, vector_size=100, window=5, min_count=1, sg=1)  # sg=1 -> skip-gram
+
+vector = model.wv["nlp"]
+similar = model.wv.most_similar("nlp")
+print(similar)`,
+    diagram: 'word2vec'
+  },
+  pos: {
+    keys: ['pos tag', 'part of speech', 'pos-tag', 'postag'],
+    answer: "POS (Part-of-Speech) tagging labels each word in a sentence with its grammatical role — noun, verb, adjective, and so on. Taggers typically use context and a trained statistical or neural model to disambiguate words like 'run' (noun vs. verb).",
+    code: `import nltk
+nltk.download('averaged_perceptron_tagger')
+
+text = "The quick fox jumps over the lazy dog"
+tokens = nltk.word_tokenize(text)
+tags = nltk.pos_tag(tokens)
+print(tags)
+# [('The','DT'), ('quick','JJ'), ('fox','NN'), ('jumps','VBZ'), ...]`,
+    diagram: 'pos'
+  },
+  tokenization: {
+    keys: ['tokeniz', 'token'],
+    answer: "Tokenization splits raw text into smaller units — words, subwords, or sentences — which is usually the first step in any NLP pipeline before tagging, parsing, or embedding.",
+    code: `import nltk
+nltk.download('punkt')
+
+text = "NLP is amazing! Isn't it?"
+word_tokens = nltk.word_tokenize(text)
+sent_tokens = nltk.sent_tokenize(text)
+
+print(word_tokens)
+print(sent_tokens)`,
+    diagram: 'tokenization'
+  },
+  sentiment: {
+    keys: ['sentiment', 'polarity', 'vader', 'textblob'],
+    answer: "Sentiment analysis determines the emotional tone of text — typically a polarity score (negative to positive) and sometimes an intensity/subjectivity score. Lexicon-based tools like VADER or TextBlob score text using word lists tuned for tone.",
+    code: `from nltk.sentiment import SentimentIntensityAnalyzer
+import nltk
+nltk.download('vader_lexicon')
+
+sia = SentimentIntensityAnalyzer()
+scores = sia.polarity_scores("I absolutely love this course!")
+print(scores)
+# {'neg': 0.0, 'neu': 0.363, 'pos': 0.637, 'compound': 0.6696}`,
+    diagram: 'sentiment'
+  },
+  nltk: {
+    keys: ['nltk'],
+    answer: "NLTK (Natural Language Toolkit) is a Python library for symbolic and statistical NLP — it bundles tokenizers, taggers, parsers, stemmers, and corpora, making it a popular teaching and prototyping tool.",
+    code: `import nltk
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
+words = ["this", "is", "a", "sample", "sentence"]
+filtered = [w for w in words if w not in stopwords.words('english')]
+print(filtered)`,
+    diagram: 'tokenization'
+  },
+  lemmatization: {
+    keys: ['lemmatiz', 'stemming', 'stem'],
+    answer: "Stemming chops words down to a root form using crude rules (e.g. 'running' → 'run'), while lemmatization uses vocabulary and grammar to return the true dictionary base form (e.g. 'better' → 'good').",
+    code: `from nltk.stem import WordNetLemmatizer, PorterStemmer
+import nltk
+nltk.download('wordnet')
+
+lemmatizer = WordNetLemmatizer()
+stemmer = PorterStemmer()
+
+print(stemmer.stem("running"))       # run
+print(lemmatizer.lemmatize("better", pos="a"))  # good`,
+    diagram: 'tokenization'
+  }
+};
+
+function findTopic(text){
+  const lower = text.toLowerCase();
+  for (const key in TOPICS){
+    if (TOPICS[key].keys.some(k => lower.includes(k))) return key;
+  }
+  return null;
+}
+
+// ---------- Rendering helpers ----------
+function timeNow(){
+  return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+function scrollToBottom(){
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addUserMessage(text){
+  const row = document.createElement('div');
+  row.className = 'row user';
+  row.innerHTML = `
+    <div class="bubble-wrap">
+      <div class="bubble">${escapeHTML(text)}</div>
+      <div class="timestamp">${timeNow()}</div>
+    </div>`;
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+function addBotMessage(html){
+  const row = document.createElement('div');
+  row.className = 'row bot';
+  row.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble-wrap">
+      <div class="bubble">${html}</div>
+      <div class="timestamp">${timeNow()}</div>
+    </div>`;
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+function showTyping(callback){
+  const row = document.createElement('div');
+  row.className = 'row bot';
+  row.id = 'typingRow';
+  row.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble-wrap">
+      <div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>
+    </div>`;
+  messagesEl.appendChild(row);
+  scrollToBottom();
+  setTimeout(() => {
+    const el = document.getElementById('typingRow');
+    if (el) el.remove();
+    callback();
+  }, 550 + Math.random()*350);
+}
+
+function escapeHTML(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- Core send flow ----------
+function sendMessage(){
+  const text = inputEl.value.trim();
+  if (!text) return;
+  addUserMessage(text);
+  inputEl.value = '';
+
+  if (awaitingSentimentInput){
+    awaitingSentimentInput = false;
+    showTyping(() => runSentimentDemo(text));
+    return;
+  }
+
+  showTyping(() => respondTo(text));
+}
+
+function respondTo(text){
+  const topicKey = findTopic(text);
+  if (topicKey){
+    lastTopic = topicKey;
+    addBotMessage(TOPICS[topicKey].answer);
+  } else {
+    addBotMessage(OUT_OF_SCOPE);
+  }
+}
+
+// ---------- Quick actions ----------
+function handleQuickAction(kind){
+  if (kind === 'code'){
+    showTyping(() => {
+      const key = lastTopic || 'word2vec';
+      const t = TOPICS[key];
+      addBotMessage(`Here's a Python example for <strong>${labelFor(key)}</strong>:<pre><code>${escapeHTML(t.code)}</code></pre>`);
+    });
+  } else if (kind === 'diagram'){
+    showTyping(() => {
+      const key = lastTopic || 'tokenization';
+      addBotMessage(`Here's a conceptual flow for <strong>${labelFor(key)}</strong>:${diagramSVG(key)}`);
+    });
+  } else if (kind === 'sentiment'){
+    showTyping(() => {
+      awaitingSentimentInput = true;
+      addBotMessage("Sure — type a sentence in the box below and I'll analyze its sentiment polarity and intensity for you.");
+    });
+  }
+}
+
+function labelFor(key){
+  const labels = {
+    word2vec: 'Word2Vec / Embeddings',
+    pos: 'POS Tagging',
+    tokenization: 'Tokenization',
+    sentiment: 'Sentiment Analysis',
+    nltk: 'NLTK',
+    lemmatization: 'Stemming vs. Lemmatization'
+  };
+  return labels[key] || key;
+}
+
+function diagramSVG(key){
+  const diagrams = {
+    tokenization: `
+      <div class="diagram-box">
+        <svg viewBox="0 0 460 90" width="100%" height="90">
+          <rect x="10" y="30" width="120" height="30" rx="8" fill="#1D222C" stroke="#2A3040"/>
+          <text x="70" y="49" fill="#E7E9EE" font-size="11" text-anchor="middle" font-family="monospace">Raw Text</text>
+          <line x1="130" y1="45" x2="170" y2="45" stroke="#8B93A7" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <rect x="170" y="30" width="120" height="30" rx="8" fill="#1D222C" stroke="#24D6A6"/>
+          <text x="230" y="49" fill="#24D6A6" font-size="11" text-anchor="middle" font-family="monospace">Tokenizer</text>
+          <line x1="290" y1="45" x2="330" y2="45" stroke="#8B93A7" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <rect x="330" y="30" width="120" height="30" rx="8" fill="#1D222C" stroke="#2A3040"/>
+          <text x="390" y="49" fill="#E7E9EE" font-size="11" text-anchor="middle" font-family="monospace">[Tokens]</text>
+          <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8B93A7"/></marker></defs>
+        </svg>
+      </div>`,
+    pos: `
+      <div class="diagram-box">
+        <svg viewBox="0 0 460 110" width="100%" height="110">
+          <text x="10" y="20" fill="#8B93A7" font-size="10" font-family="monospace">Sentence → Tokens → Tagged</text>
+          <rect x="10" y="35" width="60" height="28" rx="6" fill="#1D222C" stroke="#2A3040"/>
+          <text x="40" y="53" fill="#E7E9EE" font-size="10" text-anchor="middle" font-family="monospace">The</text>
+          <rect x="80" y="35" width="60" height="28" rx="6" fill="#1D222C" stroke="#6C63FF"/>
+          <text x="110" y="53" fill="#8B7CFF" font-size="10" text-anchor="middle" font-family="monospace">fox</text>
+          <rect x="150" y="35" width="70" height="28" rx="6" fill="#1D222C" stroke="#24D6A6"/>
+          <text x="185" y="53" fill="#24D6A6" font-size="10" text-anchor="middle" font-family="monospace">jumps</text>
+          <text x="40" y="85" fill="#8B93A7" font-size="9" text-anchor="middle" font-family="monospace">DT</text>
+          <text x="110" y="85" fill="#8B7CFF" font-size="9" text-anchor="middle" font-family="monospace">NN</text>
+          <text x="185" y="85" fill="#24D6A6" font-size="9" text-anchor="middle" font-family="monospace">VBZ</text>
+        </svg>
+      </div>`,
+    word2vec: `
+      <div class="diagram-box">
+        <svg viewBox="0 0 460 130" width="100%" height="130">
+          <text x="10" y="18" fill="#8B93A7" font-size="10" font-family="monospace">Skip-gram: word → context</text>
+          <circle cx="230" cy="65" r="22" fill="#1D222C" stroke="#24D6A6" stroke-width="2"/>
+          <text x="230" y="69" fill="#24D6A6" font-size="10" text-anchor="middle" font-family="monospace">nlp</text>
+          <circle cx="100" cy="30" r="18" fill="#1D222C" stroke="#6C63FF"/>
+          <text x="100" y="34" fill="#8B7CFF" font-size="9" text-anchor="middle" font-family="monospace">is</text>
+          <circle cx="100" cy="100" r="18" fill="#1D222C" stroke="#6C63FF"/>
+          <text x="100" y="104" fill="#8B7CFF" font-size="9" text-anchor="middle" font-family="monospace">fun</text>
+          <circle cx="360" cy="30" r="18" fill="#1D222C" stroke="#6C63FF"/>
+          <text x="360" y="34" fill="#8B7CFF" font-size="9" text-anchor="middle" font-family="monospace">learn</text>
+          <circle cx="360" cy="100" r="18" fill="#1D222C" stroke="#6C63FF"/>
+          <text x="360" y="104" fill="#8B7CFF" font-size="8" text-anchor="middle" font-family="monospace">vector</text>
+          <line x1="212" y1="55" x2="118" y2="35" stroke="#3A4152"/>
+          <line x1="212" y1="75" x2="118" y2="95" stroke="#3A4152"/>
+          <line x1="248" y1="55" x2="342" y2="35" stroke="#3A4152"/>
+          <line x1="248" y1="75" x2="342" y2="95" stroke="#3A4152"/>
+        </svg>
+      </div>`,
+    sentiment: `
+      <div class="diagram-box">
+        <svg viewBox="0 0 460 90" width="100%" height="90">
+          <rect x="10" y="30" width="110" height="30" rx="8" fill="#1D222C" stroke="#2A3040"/>
+          <text x="65" y="49" fill="#E7E9EE" font-size="11" text-anchor="middle" font-family="monospace">Input Text</text>
+          <line x1="120" y1="45" x2="160" y2="45" stroke="#8B93A7" stroke-width="1.5" marker-end="url(#arrow2)"/>
+          <rect x="160" y="30" width="130" height="30" rx="8" fill="#1D222C" stroke="#F0A63C"/>
+          <text x="225" y="49" fill="#F0A63C" font-size="11" text-anchor="middle" font-family="monospace">Lexicon Scorer</text>
+          <line x1="290" y1="45" x2="330" y2="45" stroke="#8B93A7" stroke-width="1.5" marker-end="url(#arrow2)"/>
+          <rect x="330" y="30" width="120" height="30" rx="8" fill="#1D222C" stroke="#24D6A6"/>
+          <text x="390" y="49" fill="#24D6A6" font-size="11" text-anchor="middle" font-family="monospace">Polarity ±</text>
+          <defs><marker id="arrow2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8B93A7"/></marker></defs>
+        </svg>
+      </div>`
+  };
+  return diagrams[key] || diagrams['tokenization'];
+}
+
+// ---------- Sentiment demo (lexicon-based) ----------
+const POS_WORDS = {
+  love:3, great:2, good:2, amazing:3, excellent:3, happy:2, best:3, wonderful:3, fantastic:3,
+  awesome:3, nice:1, like:1, enjoy:2, brilliant:3, perfect:3, beautiful:2, delightful:2, glad:2
+};
+const NEG_WORDS = {
+  hate:3, terrible:3, bad:2, awful:3, worst:3, sad:2, horrible:3, disappointing:2, poor:2,
+  boring:1, annoying:2, angry:2, disgusting:3, ugly:1, wrong:1, fail:2, failed:2, broken:2
+};
+const NEGATORS = ['not','never','no',"n't",'hardly','barely'];
+const INTENSIFIERS = { very:1.5, extremely:1.8, really:1.4, so:1.3, absolutely:1.7, incredibly:1.6 };
+
+function analyzeSentiment(text){
+  const tokens = text.toLowerCase().replace(/[^a-z0-9'\s]/g,' ').split(/\s+/).filter(Boolean);
+  let score = 0;
+  let matched = 0;
+  for (let i = 0; i < tokens.length; i++){
+    const w = tokens[i];
+    let base = 0;
+    if (POS_WORDS[w]) base = POS_WORDS[w];
+    else if (NEG_WORDS[w]) base = -NEG_WORDS[w];
+    if (base !== 0){
+      matched++;
+      let mult = 1;
+      // check preceding word for intensifier or negation
+      const prev = tokens[i-1];
+      if (prev && INTENSIFIERS[prev]) mult *= INTENSIFIERS[prev];
+      const prev2 = tokens[i-2];
+      if ((prev && NEGATORS.includes(prev)) || (prev2 && NEGATORS.includes(prev2))) mult *= -1;
+      score += base * mult;
+    }
+  }
+  const maxPossible = Math.max(matched * 3, 1);
+  const normalized = Math.max(-1, Math.min(1, score / maxPossible));
+  return { raw: score, normalized, matched };
+}
+
+function runSentimentDemo(text){
+  const result = analyzeSentiment(text);
+  const pct = Math.round(((result.normalized + 1) / 2) * 100); // 0..100 scale, 50 = neutral
+  let label, color;
+  if (result.normalized > 0.25){ label = 'Positive'; color = '#24D6A6'; }
+  else if (result.normalized < -0.25){ label = 'Negative'; color = '#E5556B'; }
+  else { label = 'Neutral'; color = '#F0A63C'; }
+
+  const intensity = Math.min(1, Math.abs(result.normalized)) ;
+  const intensityLabel = intensity > 0.66 ? 'High' : intensity > 0.3 ? 'Moderate' : 'Low';
+
+  const html = `
+    Sentiment: <strong style="color:${color}">${label}</strong> · Intensity: <strong>${intensityLabel}</strong>
+    <div class="sentiment-bar-track">
+      <div class="sentiment-bar-fill" style="width:${pct}%; background:${color};"></div>
+    </div>
+    <div style="font-size:11.5px; color:#8B93A7; margin-top:6px;">
+      polarity score: ${result.normalized.toFixed(2)} (range -1 to 1) · signal words matched: ${result.matched}
+    </div>
+  `;
+  addBotMessage(html);
+}
+
+// ---------- Clear chat ----------
+function clearChat(){
+  messagesEl.innerHTML = '';
+  lastTopic = null;
+  awaitingSentimentInput = false;
+  seedWelcome();
+}
+
+function seedWelcome(){
+  addBotMessage("Hi! I'm Lexicon, your NLP assistant. Ask me about <strong>Word2Vec</strong>, <strong>POS tagging</strong>, <strong>tokenization</strong>, <strong>sentiment analysis</strong>, or <strong>NLTK</strong> — or try one of the buttons below.");
+}
+
+seedWelcome();
+</script>
+
+</body>
+</html>
